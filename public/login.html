@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Sign in · Harness Editor</title>
+  <style>
+    :root { --bg: #eef1f5; --panel: #fff; --border: #d7dde4; --text: #1c2430; --muted: #637083; --accent: #1f6feb; --danger: #c93c37; color-scheme: light; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #14181e; --panel: #1b2027; --border: #2f3742; --text: #e3e8ef; --muted: #93a0b2; --accent: #4c8dff; --danger: #ff6b66; color-scheme: dark; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+    main { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px 26px; box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12); }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; margin-bottom: 18px; }
+    .brand svg { width: 22px; height: 22px; color: var(--accent); }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    p { margin: 0 0 16px; color: var(--muted); }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); }
+    #code { font: 600 24px/1 ui-monospace, monospace; letter-spacing: 8px; text-align: center; }
+    button { width: 100%; margin-top: 14px; font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 8px; padding: 10px; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .link { background: none; color: var(--accent); font-weight: 500; padding: 4px; margin-top: 8px; }
+    .msg { min-height: 20px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+    .msg.error { color: var(--danger); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l3 5h9M3 17h6l3-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="12" r="1.6" fill="currentColor"/></svg>
+      Harness Editor
+    </div>
+
+    <form id="step-email">
+      <h1>Sign in</h1>
+      <p>We'll email you a 6-digit code.</p>
+      <label for="email">Email address</label>
+      <input id="email" type="email" autocomplete="email" required autofocus>
+      <button type="submit">Send code</button>
+    </form>
+
+    <form id="step-code" hidden>
+      <h1>Check your email</h1>
+      <p>If <b id="sent-to"></b> can use this editor, a code is on its way. It expires in 10 minutes.</p>
+      <label for="code">Sign-in code</label>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required>
+      <button type="submit">Sign in</button>
+      <button type="button" class="link" id="restart">Use a different address</button>
+    </form>
+
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (text, error) => { $('msg').textContent = text || ''; $('msg').className = 'msg' + (error ? ' error' : ''); };
+    async function post(path, data) {
+      const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      let body = {};
+      try { body = await r.json(); } catch (e) { /* empty */ }
+      if (!r.ok) throw new Error(body.error || 'Something went wrong (' + r.status + ')');
+      return body;
+    }
+    $('step-email').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.submitter || $('step-email').querySelector('button');
+      btn.disabled = true;
+      msg('Sending…');
+      try {
+        await post('/auth/request', { email: $('email').value });
+        $('sent-to').textContent = $('email').value.trim();
+        $('step-email').hidden = true;
+        $('step-code').hidden = false;
+        $('code').focus();
+        msg('');
+      } catch (err) {
+        msg(err.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('step-code').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('step-code').querySelector('button[type=submit]');
+      btn.disabled = true;
+      msg('Checking…');
+      try {
+        await post('/auth/verify', { email: $('email').value, code: $('code').value });
+        msg('Signed in. Opening the editor…');
+        location.replace('/');
+      } catch (err) {
+        msg(err.message, true);
+        btn.disabled = false;
+        $('code').select();
+      }
+    });
+    $('restart').addEventListener('click', () => {
+      $('step-code').hidden = true;
+      $('step-email').hidden = false;
+      $('code').value = '';
+      msg('');
+      $('email').focus();
+    });
+  </script>
+</body>
+</html>

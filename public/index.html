@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harness Editor</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" title="Wiring harness visualiser &amp; editor">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l3 5h9M3 17h6l3-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="12" r="1.6" fill="currentColor"/></svg>
+      <span>Harness Editor</span>
+    </div>
+
+    <button class="btn icon panel-toggle" data-panel="left" title="Lists">☰</button>
+    <div class="group project">
+      <button id="btn-project" class="btn menu-btn" aria-haspopup="true"><span id="project-name">—</span><span class="caret">▾</span></button>
+      <div class="menu" id="menu-project" hidden>
+        <button data-cmd="new">New blank harness</button>
+        <button data-cmd="example">New from EH Holden example</button>
+        <button data-cmd="duplicate">Duplicate this harness</button>
+        <button data-cmd="rename">Rename…</button>
+        <hr>
+        <div class="menu-label" id="project-list-label">Saved in this browser</div>
+        <div id="project-list"></div>
+        <hr>
+        <button data-cmd="import">Import JSON…</button>
+        <button data-cmd="export-json">Export JSON</button>
+        <button data-cmd="export-svg">Export SVG drawing</button>
+        <button data-cmd="export-csv">Export wire list (CSV)</button>
+        <button data-cmd="print">Print wire schedule…</button>
+        <hr>
+        <button data-cmd="backups" class="cloud-only" hidden>Backups &amp; restore…</button>
+        <button data-cmd="reset-example" class="danger">Reset this harness to the EH example…</button>
+        <button data-cmd="delete" class="danger">Delete this harness…</button>
+        <hr class="cloud-only" hidden>
+        <button data-cmd="signout" class="cloud-only" hidden>Sign out <span class="sub" id="signout-label"></span></button>
+      </div>
+    </div>
+
+    <div class="group">
+      <button class="btn icon" id="btn-undo" title="Undo (Ctrl+Z)">↶</button>
+      <button class="btn icon" id="btn-redo" title="Redo (Ctrl+Shift+Z)">↷</button>
+    </div>
+
+    <div class="group tools" role="toolbar" aria-label="Tools">
+      <button class="btn tool" data-tool="select" title="Select / move (V)">Select</button>
+      <button class="btn tool" data-tool="wire" title="Draw wire (W): click a pin, click to add bends, click a pin or wire to finish">Wire</button>
+      <div class="dropdown">
+        <button class="btn menu-btn" id="btn-add" aria-haspopup="true">Add component <span class="caret">▾</span></button>
+        <div class="menu" id="menu-add" hidden></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="seg" role="group" aria-label="Colour scheme">
+        <button class="btn" data-scheme="oem" title="Original (OEM) wire colours">OEM</button>
+        <button class="btn" data-scheme="mf" title="Mad Folk harness wire colours">Mad Folk</button>
+      </div>
+      <select id="label-mode" class="btn" title="Wire label content">
+        <option value="circuit">Labels: circuit</option>
+        <option value="color">Labels: colour</option>
+        <option value="both">Labels: both</option>
+        <option value="none">Labels: off</option>
+      </select>
+    </div>
+
+    <div class="group grow">
+      <div class="search">
+        <input id="search" type="search" placeholder="Find circuit or component…" autocomplete="off">
+        <div class="menu results" id="search-results" hidden></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <button class="btn icon" id="btn-zoom-out" title="Zoom out (-)">−</button>
+      <button class="btn" id="btn-fit" title="Fit page (F)">Fit</button>
+      <button class="btn icon" id="btn-zoom-in" title="Zoom in (+)">+</button>
+      <button class="btn icon" id="btn-help" title="Keyboard &amp; mouse help">?</button>
+      <button class="btn icon panel-toggle" data-panel="right" title="Inspector">ⓘ</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="panel left">
+      <nav class="tabs" role="tablist">
+        <button data-tab="components">Components</button>
+        <button data-tab="wires">Wires</button>
+        <button data-tab="circuits">Circuits</button>
+        <button data-tab="colours">Colours</button>
+        <button data-tab="view">View</button>
+      </nav>
+      <div class="tab-body" id="tab-body"></div>
+    </aside>
+
+    <main class="stage">
+      <svg id="canvas" tabindex="0" aria-label="Wiring diagram canvas"></svg>
+      <div class="hud" id="hud"></div>
+      <footer class="status">
+        <span id="st-tool"></span>
+        <span id="st-cursor"></span>
+        <span id="st-zoom"></span>
+        <span id="st-counts"></span>
+        <span class="grow"></span>
+        <span id="st-peers" class="cloud-only peers" hidden></span>
+        <span id="st-save"></span>
+      </footer>
+    </main>
+
+    <aside class="panel right">
+      <div class="panel-title">Inspector</div>
+      <div id="inspector" class="inspector"></div>
+    </aside>
+  </div>
+
+  <div id="tooltip" class="tooltip" hidden></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <input type="file" id="file-import" accept=".json,application/json" hidden>
+  <input type="file" id="file-ref" accept="image/*" hidden>
+
+  <dialog id="backups-dialog">
+    <h2>Backups</h2>
+    <p class="hint">Snapshots stored in R2. Restoring replaces the harness for everyone; the current version is saved first.</p>
+    <div id="backups-list"></div>
+    <form method="dialog"><button class="btn primary">Close</button></form>
+  </dialog>
+
+  <dialog id="help-dialog">
+    <h2>Using the harness editor</h2>
+    <div class="help-grid">
+      <div>
+        <h3>Navigate</h3>
+        <ul>
+          <li><b>Drag</b> empty space, middle-drag, or <b>Space</b>+drag to pan</li>
+          <li><b>Wheel</b> to zoom, <b>F</b> to fit the page</li>
+          <li><b>Find</b> box jumps to a circuit number or component</li>
+        </ul>
+        <h3>Select &amp; edit</h3>
+        <ul>
+          <li>Click a component or wire; <b>Shift</b>+click to add; <b>Shift</b>+drag for a box</li>
+          <li>Drag components to move — attached wires follow and stay square</li>
+          <li>Selected wire: drag <b>□</b> bends, <b>○</b> segment midpoints, <b>●</b> ends (drop onto a pin to reconnect)</li>
+          <li><b>Double-click</b> a selected wire to add a bend; click a bend then <b>Delete</b> to remove it</li>
+          <li>Drag a circuit label to slide it along its wire</li>
+          <li><b>T</b> traces the selected wire's whole net (through splices &amp; connectors)</li>
+          <li><b>R</b> rotates, <b>Ctrl+D</b> duplicates, arrows nudge, <b>Delete</b> removes</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Draw wires (W)</h3>
+        <ul>
+          <li>Click a pin to start (pins show while the tool is active)</li>
+          <li>Click empty space to add square bends (hold <b>Alt</b> for any angle)</li>
+          <li>Finish on a pin, or on an existing wire to splice into it</li>
+          <li>Double-click empty space to end on a free terminal</li>
+          <li><b>Backspace</b> removes the last bend, <b>Esc</b> or right-click cancels</li>
+        </ul>
+        <h3>Saving</h3>
+        <ul>
+          <li>Every change is saved automatically; when signed in, it is shared live with everyone else editing</li>
+          <li>Use the harness menu to export JSON backups, an SVG drawing or a CSV wire list</li>
+          <li>Undo / redo: <b>Ctrl+Z</b> / <b>Ctrl+Shift+Z</b></li>
+        </ul>
+      </div>
+    </div>
+    <form method="dialog"><button class="btn primary">Close</button></form>
+  </dialog>
+
+  <script src="js/seed-eh-holden.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

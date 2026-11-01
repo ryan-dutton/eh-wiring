@@ -1,0 +1,68 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "harness-editor",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-01",
+	"observability": {
+		"enabled": true
+	},
+	// The editor UI. Every request runs through the Worker first so the drawing is only
+	// served to signed-in users.
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS",
+		"run_worker_first": true
+	},
+	"durable_objects": {
+		"bindings": [
+			// sign-in codes, sessions and the harness list (single instance "main")
+			{
+				"name": "DIRECTORY",
+				"class_name": "Directory"
+			},
+			// one per harness: live document + WebSocket relay + R2 backups
+			{
+				"name": "ROOMS",
+				"class_name": "HarnessRoom"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"Directory",
+				"HarnessRoom"
+			]
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BACKUPS",
+			"bucket_name": "harness-editor-backups"
+		},
+		{
+			"bucket_name": "harness-editor-backups",
+			"binding": "harness_editor_backups",
+			"remote": true
+		}
+	],
+	// Sign-in codes go out through Cloudflare Email Service. xtract.bot must be onboarded for
+	// Email Sending (`npx wrangler email sending enable xtract.bot`).
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"allowed_sender_addresses": [
+				"admin@xtract.bot"
+			],
+			"allowed_destination_addresses": [
+				"ryan.dutton@gmail.com",
+				"kris.bousfield@gmail.com"
+			]
+		}
+	],
+	"vars": {
+		"ALLOWED_EMAILS": "ryan.dutton@gmail.com,kris.bousfield@gmail.com",
+		"EMAIL_FROM": "admin@xtract.bot"
+	}
+}
